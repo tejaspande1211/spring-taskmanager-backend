@@ -16,30 +16,37 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class TaskController {
 
-    private final TaskService taskService;
+    private final TaskService taskService;  // ✅ Only service needed
 
     // CREATE
     @PostMapping
     public ResponseEntity<TaskResponse> createTask(
             @RequestBody TaskRequest request,
             Authentication authentication) {
-
         return ResponseEntity.ok(
                 taskService.createTask(request, authentication.getName())
         );
     }
 
-    // GET ALL
+    // GET ALL - ✅ FIXED: Delegate to service
     @GetMapping
     public ResponseEntity<Page<TaskResponse>> getAllTasks(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             Authentication authentication) {
-
         Pageable pageable = PageRequest.of(page, size);
-
         return ResponseEntity.ok(
                 taskService.getAllTasks(authentication.getName(), pageable)
+        );
+    }
+
+    // GET SINGLE (ADD)
+    @GetMapping("/{id}")
+    public ResponseEntity<TaskResponse> getTask(
+            @PathVariable Long id,
+            Authentication authentication) {
+        return ResponseEntity.ok(
+                taskService.getTaskById(id, authentication.getName())  // Add this method to service
         );
     }
 
@@ -49,7 +56,6 @@ public class TaskController {
             @PathVariable Long id,
             @RequestBody TaskRequest request,
             Authentication authentication) {
-
         return ResponseEntity.ok(
                 taskService.updateTask(id, request, authentication.getName())
         );
@@ -60,7 +66,6 @@ public class TaskController {
     public ResponseEntity<String> deleteTask(
             @PathVariable Long id,
             Authentication authentication) {
-
         taskService.deleteTask(id, authentication.getName());
         return ResponseEntity.ok("Task deleted successfully");
     }

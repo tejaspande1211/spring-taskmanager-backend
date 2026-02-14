@@ -13,4 +13,5 @@ public class TaskRequest {
     private Task.TaskStatus status;
     private Task.TaskPriority priority;
     private LocalDate dueDate;
+    private String attachmentUrl;
 }

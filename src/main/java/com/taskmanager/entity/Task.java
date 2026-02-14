@@ -54,4 +54,7 @@ public class Task {
     public enum TaskPriority {
         LOW, MEDIUM, HIGH, URGENT
     }
+    @Column(name = "attachment_url")
+    private String attachmentUrl;  // Null-safe
+
 }
