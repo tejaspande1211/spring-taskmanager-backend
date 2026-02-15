@@ -3,6 +3,7 @@ package com.taskmanager.controller;
 import com.taskmanager.dto.TaskRequest;
 import com.taskmanager.dto.TaskResponse;
 import com.taskmanager.service.TaskService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -21,11 +22,9 @@ public class TaskController {
     // CREATE
     @PostMapping
     public ResponseEntity<TaskResponse> createTask(
-            @RequestBody TaskRequest request,
+            @Valid @RequestBody TaskRequest request,  // ✅ Add @Valid
             Authentication authentication) {
-        return ResponseEntity.ok(
-                taskService.createTask(request, authentication.getName())
-        );
+        return ResponseEntity.ok(taskService.createTask(request, authentication.getName()));
     }
 
     // GET ALL - ✅ FIXED: Delegate to service
@@ -54,11 +53,9 @@ public class TaskController {
     @PutMapping("/{id}")
     public ResponseEntity<TaskResponse> updateTask(
             @PathVariable Long id,
-            @RequestBody TaskRequest request,
+            @Valid @RequestBody TaskRequest request,  // ✅ Add @Valid
             Authentication authentication) {
-        return ResponseEntity.ok(
-                taskService.updateTask(id, request, authentication.getName())
-        );
+        return ResponseEntity.ok(taskService.updateTask(id, request, authentication.getName()));
     }
 
     // DELETE

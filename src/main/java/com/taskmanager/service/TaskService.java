@@ -4,8 +4,10 @@ import com.taskmanager.dto.TaskRequest;
 import com.taskmanager.dto.TaskResponse;
 import com.taskmanager.entity.Task;
 import com.taskmanager.entity.User;
+import com.taskmanager.exception.ResourceNotFoundException;
 import com.taskmanager.repository.TaskRepository;
 import com.taskmanager.repository.UserRepository;
+import com.taskmanager.dto.TaskNotificationEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
@@ -21,12 +23,13 @@ public class TaskService {
 
     private final TaskRepository taskRepository;
     private final UserRepository userRepository;
+    private final TaskNotificationProducer taskNotificationProducer;
 
     public TaskResponse createTask(TaskRequest request, String username) {
         log.info("Creating task for user: {}", username);
 
         User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("User not found: " + username));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + username));
 
         Task task = new Task();
         task.setTitle(request.getTitle());
@@ -34,43 +37,53 @@ public class TaskService {
         task.setStatus(request.getStatus() != null ? request.getStatus() : Task.TaskStatus.TODO);
         task.setPriority(request.getPriority() != null ? request.getPriority() : Task.TaskPriority.MEDIUM);
         task.setDueDate(request.getDueDate());
+        task.setAttachmentUrl(request.getAttachmentUrl());  // ✅ Added
         task.setUser(user);
 
         Task saved = taskRepository.save(task);
+        taskNotificationProducer.publishTaskCreatedEvent(
+                TaskNotificationEvent.builder()
+                        .taskId(saved.getId())
+                        .taskTitle(saved.getTitle())
+                        .username(user.getUsername())
+                        .userEmail(user.getEmail())
+                        .build()
+        );
         log.info("Task created successfully: ID {}", saved.getId());
 
         return mapToResponse(saved);
     }
 
-    @Cacheable(value = "tasks", key = "#username + '_' + #pageable")
+    //@Cacheable(value = "tasks_list", key = "#username + '_p' + #pageable.pageNumber + '_s' + #pageable.pageSize")
     public Page<TaskResponse> getAllTasks(String username, Pageable pageable) {
-        log.info("🔥 CACHE MISS - Fetching tasks for user: {}", username);
-
-        return taskRepository.findByUserUsername(username, pageable)
-                .map(this::mapToResponse);
+        log.info("📋 Fetching page {}/{} for user {}", pageable.getPageNumber(), pageable.getPageSize(), username);
+        Page<Task> tasks = taskRepository.findByUserUsername(username, pageable);
+        return tasks.map(this::mapToResponse);
     }
 
-    @Cacheable(value = "tasks", key = "#id + '_' + #username")
+
+    //    @Cacheable(value = "tasks", key = "#id + '_' + #username")
     public TaskResponse getTaskById(Long id, String username) {
         log.info("🔥 CACHE MISS - Single task ID: {} for user: {}", id, username);
 
         return taskRepository.findByIdAndUserUsername(id, username)
                 .map(this::mapToResponse)
-                .orElseThrow(() -> new RuntimeException("Task not found: ID " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Task not found: ID " + id));
     }
 
-    @CacheEvict(value = "tasks", allEntries = true)
+//    @CacheEvict(value = "tasks", allEntries = true)
     public TaskResponse updateTask(Long id, TaskRequest request, String username) {
         log.info("Updating task ID: {} for user: {}", id, username);
 
         Task task = taskRepository.findByIdAndUserUsername(id, username)
-                .orElseThrow(() -> new RuntimeException("Task not found or not authorized"));
+                .orElseThrow(() -> new ResourceNotFoundException("Task not found or not authorized"));
 
         if (request.getTitle() != null) task.setTitle(request.getTitle());
         if (request.getDescription() != null) task.setDescription(request.getDescription());
         if (request.getStatus() != null) task.setStatus(request.getStatus());
         if (request.getPriority() != null) task.setPriority(request.getPriority());
         if (request.getDueDate() != null) task.setDueDate(request.getDueDate());
+        if (request.getAttachmentUrl() != null) task.setAttachmentUrl(request.getAttachmentUrl());
 
         Task updated = taskRepository.save(task);
         log.info("Task updated successfully: ID {}", updated.getId());
@@ -78,12 +91,12 @@ public class TaskService {
         return mapToResponse(updated);
     }
 
-    @CacheEvict(value = "tasks", allEntries = true)
+//    @CacheEvict(value = "tasks", allEntries = true)
     public void deleteTask(Long id, String username) {
         log.info("Deleting task ID: {} for user: {}", id, username);
 
         Task task = taskRepository.findByIdAndUserUsername(id, username)
-                .orElseThrow(() -> new RuntimeException("Task not found or not authorized"));
+                .orElseThrow(() -> new ResourceNotFoundException("Task not found or not authorized"));
 
         taskRepository.delete(task);
         log.info("Task deleted successfully: ID {}", id);
