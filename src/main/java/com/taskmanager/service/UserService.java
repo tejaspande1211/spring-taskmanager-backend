@@ -4,6 +4,7 @@ import com.taskmanager.dto.LoginRequest;
 import com.taskmanager.dto.LoginResponse;
 import com.taskmanager.dto.UserResponse;
 import com.taskmanager.entity.User;
+import com.taskmanager.service.JwtService;
 import com.taskmanager.exception.BadRequestException;
 import com.taskmanager.exception.UnauthorizedException;
 import com.taskmanager.repository.UserRepository;

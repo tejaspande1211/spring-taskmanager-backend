@@ -1,5 +1,6 @@
 package com.taskmanager.service;
 
+import com.taskmanager.dto.TaskNotificationEvent;
 import com.taskmanager.dto.TaskRequest;
 import com.taskmanager.dto.TaskResponse;
 import com.taskmanager.entity.Task;
@@ -7,11 +8,11 @@ import com.taskmanager.entity.User;
 import com.taskmanager.exception.ResourceNotFoundException;
 import com.taskmanager.repository.TaskRepository;
 import com.taskmanager.repository.UserRepository;
-import com.taskmanager.dto.TaskNotificationEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -25,9 +26,9 @@ public class TaskService {
     private final UserRepository userRepository;
     private final TaskNotificationProducer taskNotificationProducer;
 
+    @CacheEvict(value = "userTasks", allEntries = true)
     public TaskResponse createTask(TaskRequest request, String username) {
         log.info("Creating task for user: {}", username);
-
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found: " + username));
 
@@ -37,7 +38,7 @@ public class TaskService {
         task.setStatus(request.getStatus() != null ? request.getStatus() : Task.TaskStatus.TODO);
         task.setPriority(request.getPriority() != null ? request.getPriority() : Task.TaskPriority.MEDIUM);
         task.setDueDate(request.getDueDate());
-        task.setAttachmentUrl(request.getAttachmentUrl());  // ✅ Added
+        task.setAttachmentUrl(request.getAttachmentUrl());
         task.setUser(user);
 
         Task saved = taskRepository.save(task);
@@ -54,24 +55,26 @@ public class TaskService {
         return mapToResponse(saved);
     }
 
-    //@Cacheable(value = "tasks_list", key = "#username + '_p' + #pageable.pageNumber + '_s' + #pageable.pageSize")
+    // Avoid caching Page<> directly to prevent Redis/Jackson Page deserialization failures on GET /api/tasks.
     public Page<TaskResponse> getAllTasks(String username, Pageable pageable) {
-        log.info("📋 Fetching page {}/{} for user {}", pageable.getPageNumber(), pageable.getPageSize(), username);
+        log.info("Fetching page {}/{} for user {}", pageable.getPageNumber(), pageable.getPageSize(), username);
         Page<Task> tasks = taskRepository.findByUserUsername(username, pageable);
         return tasks.map(this::mapToResponse);
     }
 
-
-    //    @Cacheable(value = "tasks", key = "#id + '_' + #username")
+    @Cacheable(value = "tasks", key = "#id + '_' + #username", unless = "#result == null")
     public TaskResponse getTaskById(Long id, String username) {
-        log.info("🔥 CACHE MISS - Single task ID: {} for user: {}", id, username);
+        log.info("CACHE MISS - Single task ID: {} for user: {}", id, username);
 
         return taskRepository.findByIdAndUserUsername(id, username)
                 .map(this::mapToResponse)
                 .orElseThrow(() -> new ResourceNotFoundException("Task not found: ID " + id));
     }
 
-//    @CacheEvict(value = "tasks", allEntries = true)
+    @Caching(evict = {
+            @CacheEvict(value = "tasks", key = "#id + '_' + #username"),
+            @CacheEvict(value = "userTasks", allEntries = true)
+    })
     public TaskResponse updateTask(Long id, TaskRequest request, String username) {
         log.info("Updating task ID: {} for user: {}", id, username);
 
@@ -91,7 +94,10 @@ public class TaskService {
         return mapToResponse(updated);
     }
 
-//    @CacheEvict(value = "tasks", allEntries = true)
+    @Caching(evict = {
+            @CacheEvict(value = "tasks", key = "#id + '_' + #username"),
+            @CacheEvict(value = "userTasks", allEntries = true)
+    })
     public void deleteTask(Long id, String username) {
         log.info("Deleting task ID: {} for user: {}", id, username);
 

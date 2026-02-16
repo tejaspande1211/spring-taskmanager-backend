@@ -23,6 +23,12 @@ spring:
 server:
   port: 8080
 
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+  api-docs:
+    path: /v3/api-docs
+
 jwt:
   secret: ${JWT_SECRET}
   expiration: 3600000
@@ -32,3 +38,12 @@ rabbitmq:
   port: 5672
   username: guest
   password: guest
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics,caches  # ✅ Monitor cache hits
+logging:
+  level:
+    org.springframework.cache: DEBUG
